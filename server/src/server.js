@@ -1,6 +1,6 @@
 // Imports the express Node module.
 var express = require('express');
-var util = require('./util');
+//var util = require('./util');
 var db = require('./database');
 // Creates an Express server.
 var app = express();
@@ -37,7 +37,7 @@ res.status(400).end()
 function getFeedItemSync(feedItemId) {
   var feedItem = db.readDocument('feedItems', feedItemId);
   // Resolve 'like' counter.
-  feedItem.likeCounter = feedItem.likeCounter.map((id) => readDocument('users', id));
+  feedItem.likeCounter = feedItem.likeCounter.map((id) => db.readDocument('users', id));
   // Assuming a StatusUpdate. If we had other types of FeedItems in the DB, we would
   // need to check the type and have logic for each type.
   feedItem.contents.author = db.readDocument('users', feedItem.contents.author);
@@ -47,25 +47,7 @@ function getFeedItemSync(feedItemId) {
   });
   return feedItem;
 }
-/**
-* Resolves a feed item. Internal to the server, since it's synchronous.
-*/
-function getFeedItemSync(feedItemId) {
-var feedItem = db.readDocument('feedItems', feedItemId);
-// Resolve 'like' counter.
-feedItem.likeCounter = feedItem.likeCounter.map((id) =>
-db.readDocument('users', id));
-// Assuming a StatusUpdate. If we had other types of
-// FeedItems in the DB, we would
-// need to check the type and have logic for each type.
-feedItem.contents.author = db.readDocument('users',
-feedItem.contents.author);
-// Resolve comment author.
-feedItem.comments.forEach((comment) => {
-comment.author = db.readDocument('users', comment.author);
-});
-return feedItem;
-}
+
 /**
 * Get the feed data for a particular user.
 */

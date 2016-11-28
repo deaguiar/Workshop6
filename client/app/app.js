@@ -9,6 +9,7 @@ import FeedItem from './components/feeditem';
 import {hideElement} from './util';
 import {searchForFeedItems, deleteFeedItem} from './server';
 import { IndexRoute, Router, Route, hashHistory } from 'react-router'
+import ErrorBanner from './components/errorbanner';
 
 /**
  * A fake profile page.
@@ -47,7 +48,7 @@ class SearchResultsPage extends React.Component {
     }
     return searchTerm;
   }
-  
+
   render() {
     var searchTerm = this.getSearchTerm();
     // By using the searchTerm as the key, React will create a new
@@ -67,13 +68,13 @@ class SearchResults extends React.Component {
       results: []
     };
   }
-  
+
   deleteFeedItem(id) {
     deleteFeedItem(id, () => {
       this.refresh();
     });
   }
-  
+
   refresh() {
     var searchTerm = this.props.searchTerm;
     if (searchTerm !== "") {
@@ -90,11 +91,11 @@ class SearchResults extends React.Component {
       });
     }
   }
-  
+
   componentDidMount() {
     this.refresh();
   }
-  
+
   render() {
     return (
       <div>
@@ -125,34 +126,40 @@ class SearchResults extends React.Component {
  */
 class App extends React.Component {
   render() {
-    // If there's no query input to this page (e.g. /foo instead of /foo?bar=4),
-    // query may be undefined. We have to check for this, otherwise
-    // JavaScript will throw an exception and die!
-    var queryVars = this.props.location.query;
-    var searchTerm = null;
-    if (queryVars && queryVars.searchTerm) {
-      searchTerm = queryVars.searchTerm;
-    }
-    return (
-      <div>
-        <NavBar searchTerm={searchTerm} />
-        <div className="container">
-          <div className="row">
-            <div className="col-md-2 fb-left-sidebar">
-              <LeftSideBar />
-            </div>
-            <div className="col-md-7">
-              {this.props.children}
-            </div>
-            <div className="col-md-3 fb-right-sidebar">
-              <RightSideBar />
-            </div>
-          </div>
-        </div>
-        <ChatPopup />
-      </div>
-    )
+  // If there's no query input to this page (e.g. /foo instead of /foo?bar=4),
+  // query may be undefined. We have to check for this, otherwise
+  // JavaScript will throw an exception and die!
+  37
+  var queryVars = this.props.location.query;
+  var searchTerm = null;
+  if (queryVars && queryVars.searchTerm) {
+  searchTerm = queryVars.searchTerm;
   }
+  return (
+  <div>
+    <NavBar searchTerm={searchTerm} />
+  <div className="container">
+    <div className="row">
+        <div className="col-md-12">
+        <ErrorBanner />
+  </div>
+      </div>
+        <div className="row">
+          <div className="col-md-2 fb-left-sidebar">
+    <LeftSideBar />
+        </div>
+            <div className="col-md-7">
+          {this.props.children}
+    </div>
+          <div className="col-md-3 fb-right-sidebar">
+    <RightSideBar />
+        </div>
+    </div>
+  </div>
+          <ChatPopup />
+  </div>
+  )
+}
 }
 
 ReactDOM.render((
