@@ -9,6 +9,7 @@ var StatusUpdateSchema = require('./schemas/statusupdate.json');
 var validate = require('express-jsonschema').validate;
 var writeDocument = db.writeDocument;
 var addDocument = db.addDocument;
+var commentSchema = require('./schemas/comment.json');
 // Support receiving text in HTTP request bodies
 app.use(bodyParser.text());
 // Support receiving JSON in HTTP request bodies
@@ -57,7 +58,85 @@ writeDocument('feeds', feedData);
 // Return the newly-posted object.
 return newStatusUpdate;
 }
-// `POST /feeditem { userId: user, location: location, contents: contents }`
+function postComment(user, feed, contents) {
+    var time = new Date().getTime();
+    var feedData = db.readDocument('feedItems', feed);
+    feedData.comments.push({
+        "author": user,
+        "contents": contents,
+        "postDate": time,
+        "likeCounter": []
+    });
+    writeDocument('feedItems', feedData);
+    return getFeedItemSync(feed);
+}
+app.post('/feeditem',
+    validate({ body: StatusUpdateSchema }), function(req, res) {
+        var body = req.body;
+        var fromUser = getUserIdFromToken(req.get('Authorization'));
+        if (fromUser === body.userId) {
+            var newUpdate = postStatusUpdate(body.userId, body.location,
+                body.contents);
+            res.status(201);
+            res.set('Location', '/feeditem/' + newUpdate._id);
+            res.send(newUpdate);
+        } else {
+            res.status(401).end();
+        }
+    });
+
+app.post('/feeditem/:feeditemid/comment',
+    validate({body: commentSchema}), function(req, res) {
+    var body = req.body;
+    var fromUser = getUserIdFromToken(req.get('Authorization'));
+    if(fromUser === body.userId) {
+        var newComment = postComment(body.userId, req.params.feeditemid, body.contents);
+        res.set('Location', '/feeditem/' + req.params.feeditemid);
+        res.status(201);
+        res.send(newComment);
+    } else {
+        res.status(401).end();
+    }
+});
+
+
+app.put('/feeditem/:feeditemid/comment/:commentid/:userid', function(req, res) {
+    var fromUser = getUserIdFromToken(req.get('Authorization'));
+    var userId = parseInt(req.params.userid, 10);
+    if (fromUser === userId) {
+        var feedItemId = parseInt(req.params.feeditemid, 10);
+        var feedItem = db.readDocument('feedItems', feedItemId);
+        var comment = feedItem.comments[parseInt(req.params.commentid, 10)];
+        if (comment.likeCounter.indexOf(userId) === -1) {
+            comment.likeCounter.push(userId);
+            writeDocument('feedItems', feedItem);
+        }
+        comment.author = db.readDocument('users', comment.author);
+        res.send(comment);
+    } else {
+        res.status(401).end();
+    }
+});
+
+app.delete('/feeditem/:feeditemid/comment/:commentid/:userid', function(req, res) {
+    var fromUser = getUserIdFromToken(req.get('Authorization'));
+    var userId = parseInt(req.params.userid, 10);
+    if (fromUser === userId) {
+        var feedItemId = parseInt(req.params.feeditemid, 10);
+        var feedItem = db.readDocument('feedItems', feedItemId);
+        var comment = feedItem.comments[parseInt(req.params.commentid, 10)];
+        var likeIndex = comment.likeCounter.indexOf(userId);
+        if (likeIndex !== -1) {
+            comment.likeCounter.splice(likeIndex, 1);
+            writeDocument('feedItems', feedItem);
+        }
+        comment.author = db.readDocument('users', comment.author);
+        res.send(comment);
+    } else {
+        res.status(401).end();
+    }
+});
+
 app.post('/feeditem',
 validate({ body: StatusUpdateSchema }), function(req, res) {
 // If this function runs, `req.body` passed JSON validation!

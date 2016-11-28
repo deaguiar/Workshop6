@@ -96,18 +96,14 @@ export function getFeedData(user, cb) {
 /**
  * Adds a new comment to the database on the given feed item.
  */
-export function postComment(feedItemId, author, contents, cb) {
-  var feedItem = readDocument('feedItems', feedItemId);
-  feedItem.comments.push({
-    "author": author,
-    "contents": contents,
-    "postDate": new Date().getTime(),
-    "likeCounter": []
-  });
-  writeDocument('feedItems', feedItem);
-  // Return a resolved version of the feed item.
-  emulateServerReturn(getFeedItemSync(feedItemId), cb);
-}
+ export function postComment(feedItemId, author, contents, cb) {
+     sendXHR('POST', '/feeditem/' + feedItemId + '/comment', {
+         userId: author,
+         contents: contents
+     }, (xhr) => {
+         cb(JSON.parse(xhr.responseText));
+     });
+ }
 
 /**
  * Updates a feed item's likeCounter by adding the user to the likeCounter.
@@ -132,29 +128,22 @@ export function postComment(feedItemId, author, contents, cb) {
 /**
  * Adds a 'like' to a comment.
  */
-export function likeComment(feedItemId, commentIdx, userId, cb) {
-  var feedItem = readDocument('feedItems', feedItemId);
-  var comment = feedItem.comments[commentIdx];
-  comment.likeCounter.push(userId);
-  writeDocument('feedItems', feedItem);
-  comment.author = readDocument('users', comment.author);
-  emulateServerReturn(comment, cb);
-}
+ export function likeComment(feedItemId, commentIdx, userId, cb) {
+     sendXHR('PUT', '/feeditem/' + feedItemId + '/comment/' + commentIdx + '/' + userId,
+         undefined, (xhr) => {
+             cb(JSON.parse(xhr.responseText));
+         });
+ }
 
 /**
  * Removes a 'like' from a comment.
  */
-export function unlikeComment(feedItemId, commentIdx, userId, cb) {
-  var feedItem = readDocument('feedItems', feedItemId);
-  var comment = feedItem.comments[commentIdx];
-  var userIndex = comment.likeCounter.indexOf(userId);
-  if (userIndex !== -1) {
-    comment.likeCounter.splice(userIndex, 1);
-    writeDocument('feedItems', feedItem);
-  }
-  comment.author = readDocument('users', comment.author);
-  emulateServerReturn(comment, cb);
-}
+ export function unlikeComment(feedItemId, commentIdx, userId, cb) {
+     sendXHR('DELETE', '/feeditem/' + feedItemId + '/comment/' + commentIdx + '/' + userId,
+         undefined, (xhr) => {
+             cb(JSON.parse(xhr.responseText));
+     });
+ }
 
 /**
  * Updates the text in a feed item (assumes a status update)
