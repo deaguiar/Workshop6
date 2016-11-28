@@ -1,6 +1,6 @@
 // Imports the express Node module.
 var express = require('express');
-var util = require('./util');
+//var util = require('./util');
 var db = require('./database');
 // Creates an Express server.
 var app = express();
@@ -150,6 +150,102 @@ return -1;
 }
 }
 /**
+ * Delete a feed item.
+ */
+app.delete('/feeditem/:feeditemid', function(req, res) {
+    var fromUser = getUserIdFromToken(req.get('Authorization'));
+    var feedItemId = parseInt(req.params.feeditemid, 10);
+    var feedItem = db.readDocument('feedItems', feedItemId);
+    if (feedItem.contents.author === fromUser) {
+        db.deleteDocument('feedItems', feedItemId);
+        var feeds = db.getCollection('feeds');
+        var feedIds = Object.keys(feeds);
+        feedIds.forEach((feedId) => {
+            var feed = feeds[feedId];
+            var itemIdx = feed.contents.indexOf(feedItemId);
+            if (itemIdx !== -1) {
+                feed.contents.splice(itemIdx, 1);
+                db.writeDocument('feeds', feed);
+            }
+        });
+        res.send();
+    } else {
+        res.status(401).end();
+    }
+});
+// Like a feed item.
+app.put('/feeditem/:feeditemid/likelist/:userid', function(req, res) {
+    var fromUser = getUserIdFromToken(req.get('Authorization'));
+    var feedItemId = parseInt(req.params.feeditemid, 10);
+    var userId = parseInt(req.params.userid, 10);
+    if (fromUser === userId) {
+        var feedItem = db.readDocument('feedItems', feedItemId);
+        if (feedItem.likeCounter.indexOf(userId) === -1) {
+            feedItem.likeCounter.push(userId);
+            writeDocument('feedItems', feedItem);
+        }
+        res.send(feedItem.likeCounter.map((userId) =>
+            db.readDocument('users', userId)));
+    } else {
+        res.status(401).end();
+    }
+});
+
+// Unlike a feed item.
+app.delete('/feeditem/:feeditemid/likelist/:userid', function(req, res) {
+    var fromUser = getUserIdFromToken(req.get('Authorization'));
+    var feedItemId = parseInt(req.params.feeditemid, 10);
+    var userId = parseInt(req.params.userid, 10);
+    if (fromUser === userId) {
+        var feedItem = db.readDocument('feedItems', feedItemId);
+        var likeIndex = feedItem.likeCounter.indexOf(userId);
+        if (likeIndex !== -1) {
+            feedItem.likeCounter.splice(likeIndex, 1);
+            writeDocument('feedItems', feedItem);
+        }
+        res.send(feedItem.likeCounter.map((userId) =>
+            db.readDocument('users', userId)));
+    } else {
+        res.status(401).end();
+    }
+});
+
+// Search for feed item
+app.post('/search', function(req, res) {
+    var fromUser = getUserIdFromToken(req.get('Authorization'));
+    var user = db.readDocument('users', fromUser);
+    if (typeof(req.body) === 'string') {
+        var queryText = req.body.trim().toLowerCase();
+        var feedItemIDs = db.readDocument('feeds', user.feed).contents;
+        res.send(feedItemIDs.filter((feedItemID) => {
+            var feedItem = db.readDocument('feedItems', feedItemID);
+            return feedItem.contents.contents
+                    .toLowerCase()
+                    .indexOf(queryText) !== -1;
+        }).map(getFeedItemSync));
+    } else {
+        res.status(400).end();
+    }
+});
+
+// Update a feed item.
+app.put('/feeditem/:feeditemid/content', function(req, res) {
+    var fromUser = getUserIdFromToken(req.get('Authorization'));
+    var feedItemId = req.params.feeditemid;
+    var feedItem = db.readDocument('feedItems', feedItemId);
+    if (fromUser === feedItem.contents.author) {
+        if (typeof(req.body) !== 'string') {
+            res.status(400).end();
+            return;
+        }
+        feedItem.contents.contents = req.body;
+        writeDocument('feedItems', feedItem);
+        res.send(getFeedItemSync(feedItemId));
+    } else {
+        res.status(401).end();
+    }
+});
+/**
 * Get the feed data for a particular user.
 */
 app.get('/user/:userid/feed', function(req, res) {
@@ -165,6 +261,14 @@ res.send(getFeedData(userid));
 // 401: Unauthorized request.
 res.status(401).end();
 }
+});
+// Reset database.
+app.post('/resetdb', function(req, res) {
+console.log("Resetting database...");
+// This is a debug route, so don't do any validation.
+db.resetDatabase();
+// res.send() sends an empty response with status code 200
+res.send();
 });
 app.use(function(err, req, res, next) {
     if (err.name === 'JsonSchemaValidation') {
