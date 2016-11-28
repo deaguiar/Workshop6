@@ -1,14 +1,19 @@
 // Imports the express Node module.
 var express = require('express');
-//var util = require('./util');
+var util = require('./util');
 var db = require('./database');
 // Creates an Express server.
 var app = express();
 var bodyParser = require('body-parser');
-//var  = util.reverseString();
-
- //var reverse = util.reverseString();
- app.use(bodyParser.text());
+var StatusUpdateSchema = require('./schemas/statusupdate.json');
+var validate = require('express-jsonschema').validate;
+var writeDocument = db.writeDocument;
+var addDocument = db.addDocument;
+// Support receiving text in HTTP request bodies
+app.use(bodyParser.text());
+// Support receiving JSON in HTTP request bodies
+app.use(bodyParser.json());
+app.use(bodyParser.text());
  // You run the server from `server`, so `../client/build` is `server/../client/build`.
 // '..' means "go up one directory", so this translates into `client/build`!
 app.use(express.static('../client/build'));
@@ -17,6 +22,64 @@ app.use(express.static('../client/build'));
 app.get('/', function (req, res) {
 res.send('Hello World!');
 });
+/**
+* Adds a new status update to the database.
+*/
+function postStatusUpdate(user, location, contents) {
+// If we were implementing this for real on an actual server, we would check
+// that the user ID is correct & matches the authenticated user. But since
+// we're mocking it, we can be less strict.
+// Get the current UNIX time.
+var time = new Date().getTime();
+// The new status update. The database will assign the ID for us.
+var newStatusUpdate = {
+"likeCounter": [],
+"type": "statusUpdate",
+"contents": {
+"author": user,
+"postDate": time,
+"location": location,
+"contents": contents,
+"likeCounter": []
+},
+// List of comments on the post
+"comments": []
+};
+// Add the status update to the database.
+// Returns the status update w/ an ID assigned.
+newStatusUpdate = addDocument('feedItems', newStatusUpdate);
+// Add the status update reference to the front of the current user's feed.
+var userData = db.readDocument('users', user);
+var feedData = db.readDocument('feeds', userData.feed);
+feedData.contents.unshift(newStatusUpdate._id);
+// Update the feed object.
+writeDocument('feeds', feedData);
+// Return the newly-posted object.
+return newStatusUpdate;
+}
+// `POST /feeditem { userId: user, location: location, contents: contents }`
+app.post('/feeditem',
+validate({ body: StatusUpdateSchema }), function(req, res) {
+// If this function runs, `req.body` passed JSON validation!
+var body = req.body;
+var fromUser = getUserIdFromToken(req.get('Authorization'));
+// Check if requester is authorized to post this status update.
+// (The requester must be the author of the update.)
+if (fromUser === body.userId) {
+var newUpdate = postStatusUpdate(body.userId, body.location,
+body.contents);
+// When POST creates a new resource, we should tell the client about it
+// in the 'Location' header and use status code 201.
+res.status(201);
+res.set('Location', '/feeditem/' + newUpdate._id);
+// Send the update!
+res.send(newUpdate);
+} else {
+// 401: Unauthorized.
+res.status(401).end();
+}
+});
+
 
 // Handle POST /reverse [data]
 //app.post('/reverse', function (req, res) {
@@ -103,6 +166,13 @@ res.send(getFeedData(userid));
 res.status(401).end();
 }
 });
+app.use(function(err, req, res, next) {
+    if (err.name === 'JsonSchemaValidation') {
+        res.status(400).end();
+    } else {
+        next(err);
+    }
+})
 // Starts the server on port 3000!
 app.listen(3000, function () {
 console.log('Example app listening on port 3000!');
