@@ -1,6 +1,6 @@
 // Imports the express Node module.
 var express = require('express');
-var reverseString= require('./util').reverseString;
+var util = require('./util');
 // Creates an Express server.
 var app = express();
 var bodyParser = require('body-parser');
